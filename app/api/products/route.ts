@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { createProduct, listProducts } from "@/lib/db";
+import { LV_STYLES } from "@/lib/lv-data";
 import type { CreateProductInput } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q")?.toLowerCase();
   const category = searchParams.get("category");
+  const all = searchParams.get("all") === "true";
 
-  const products = await listProducts(true);
+  const products = await listProducts(!all);
 
   let filtered = products;
   if (query) {
@@ -21,8 +23,7 @@ export async function GET(req: NextRequest) {
   }
   if (category) {
     filtered = filtered.filter((p) => {
-      const { LV_STYLES } = require("@/lib/lv-data");
-      const style = LV_STYLES.find((s: { nameEn: string; category: string }) => s.nameEn === p.styleName);
+      const style = LV_STYLES.find((s) => s.nameEn === p.styleName);
       return style?.category === category;
     });
   }
