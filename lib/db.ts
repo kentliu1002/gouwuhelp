@@ -1,41 +1,73 @@
-import { kv } from "@vercel/kv";
+import { put, del, list, head } from "@vercel/blob";
 import type { Product, CreateProductInput } from "./types";
 
-const PRODUCTS_KEY = "products";
+const PREFIX = "products/";
 
-function productKey(id: string) {
-  return `product:${id}`;
+function blobPath(id: string) {
+  return `${PREFIX}${id}.json`;
 }
 
 export async function createProduct(input: CreateProductInput & { id: string }): Promise<Product> {
   const product: Product = { ...input, createdAt: Date.now() };
-  await kv.set(productKey(product.id), product);
-  await kv.zadd(PRODUCTS_KEY, { score: product.createdAt, member: product.id });
+  await put(blobPath(product.id), JSON.stringify(product), {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/json",
+  });
   return product;
 }
 
 export async function getProduct(id: string): Promise<Product | null> {
-  return kv.get<Product>(productKey(id));
+  try {
+    const info = await head(blobPath(id));
+    const res = await fetch(info.url, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json() as Promise<Product>;
+  } catch {
+    return null;
+  }
 }
 
 export async function updateProduct(id: string, patch: Partial<Product>): Promise<Product | null> {
   const product = await getProduct(id);
   if (!product) return null;
   const updated = { ...product, ...patch };
-  await kv.set(productKey(id), updated);
+  await put(blobPath(id), JSON.stringify(updated), {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/json",
+  });
   return updated;
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  await kv.del(productKey(id));
-  await kv.zrem(PRODUCTS_KEY, id);
+  try {
+    const info = await head(blobPath(id));
+    await del(info.url);
+  } catch {
+    // already deleted
+  }
 }
 
 export async function listProducts(onlyAvailable = true): Promise<Product[]> {
-  const ids = await kv.zrange<string[]>(PRODUCTS_KEY, 0, -1);
-  if (!ids.length) return [];
-  const products = await Promise.all(ids.map((id) => kv.get<Product>(productKey(id))));
+  const { blobs } = await list({ prefix: PREFIX, mode: "expanded" });
+  const dataBlobs = blobs.filter((b) => b.pathname.endsWith(".json"));
+  if (!dataBlobs.length) return [];
+
+  const products = await Promise.all(
+    dataBlobs.map(async (b) => {
+      try {
+        const res = await fetch(b.url, { cache: "no-store" });
+        if (!res.ok) return null;
+        return res.json() as Promise<Product>;
+      } catch {
+        return null;
+      }
+    })
+  );
+
   const valid = products.filter((p): p is Product => p !== null);
-  if (onlyAvailable) return valid.filter((p) => p.isAvailable).reverse();
-  return valid.reverse();
+  const sorted = valid.sort((a, b) => b.createdAt - a.createdAt);
+  if (onlyAvailable) return sorted.filter((p) => p.isAvailable);
+  return sorted;
 }
