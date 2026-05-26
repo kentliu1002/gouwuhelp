@@ -1,11 +1,18 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.AI_API_KEY!,
-  baseURL: process.env.AI_BASE_URL,
-});
+let _client: OpenAI | null = null;
 
-const MODEL = process.env.AI_MODEL ?? "qwen3.6-plus";
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      apiKey: process.env.AI_API_KEY!,
+      baseURL: process.env.AI_BASE_URL,
+    });
+  }
+  return _client;
+}
+
+const MODEL = () => process.env.AI_MODEL ?? "qwen3.6-plus";
 
 export interface IdentifyResult {
   styleName: string;
@@ -24,8 +31,8 @@ export async function identifyBag(imageUrls: string[]): Promise<IdentifyResult> 
     image_url: { url },
   }));
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
+  const response = await getClient().chat.completions.create({
+    model: MODEL(),
     messages: [
       {
         role: "system",
@@ -80,8 +87,8 @@ export async function generateDescription(product: {
   refurbishStatus: string;
   purchaseChannel: string;
 }): Promise<{ description: string; promotionalCopy: string }> {
-  const stream = await client.chat.completions.create({
-    model: MODEL,
+  const response = await getClient().chat.completions.create({
+    model: MODEL(),
     messages: [
       {
         role: "system",
@@ -118,7 +125,7 @@ export async function generateDescription(product: {
     ...({ extra_body: { enable_thinking: false } } as object),
   });
 
-  const text = stream.choices[0]?.message?.content ?? "{}";
+  const text = response.choices[0]?.message?.content ?? "{}";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("AI返回格式错误");
   return JSON.parse(jsonMatch[0]) as { description: string; promotionalCopy: string };
