@@ -322,16 +322,28 @@ def main():
                 raise RuntimeError("图片全部上传失败")
             print(f"           ✓ 已上传 {len(blob_urls)} 张")
 
-            # AI 鉴别（使用 blob URL 确保 AI 可访问）
-            ai_photos = blob_urls[:4]
-            identified = curl_post(
-                f"{SITE_BASE}/api/ai/identify",
-                {"imageUrls": ai_photos},
-                timeout=60,
-            )
-
-            if "error" in identified:
-                raise RuntimeError(f"AI error: {identified['error']}")
+            # AI 鉴别（只用前 2 张加速，blob URL 确保 AI 可访问）
+            ai_photos = blob_urls[:2]
+            identified = None
+            for attempt in range(3):
+                if attempt > 0:
+                    wait = 30 * attempt
+                    print(f"           ⏳ 重试 AI ({attempt}/2)，等待 {wait}s…")
+                    time.sleep(wait)
+                try:
+                    identified = curl_post(
+                        f"{SITE_BASE}/api/ai/identify",
+                        {"imageUrls": ai_photos},
+                        timeout=120,
+                    )
+                    if "error" not in identified:
+                        break
+                    print(f"           ⚠ AI error: {identified['error']}")
+                    identified = None
+                except Exception as ai_err:
+                    print(f"           ⚠ AI exception: {ai_err}")
+            if not identified:
+                raise RuntimeError("AI 鉴别失败（3次重试均失败）")
 
             style_name = identified.get("styleName", "Unknown")
             confidence = identified.get("confidence", "?")

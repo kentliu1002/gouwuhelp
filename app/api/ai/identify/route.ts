@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { identifyBag } from "@/lib/ai";
 import { LV_STYLES } from "@/lib/lv-data";
 
-export const maxDuration = 60; // seconds
+export const maxDuration = 120; // seconds – 4-image AI calls take ~40-80s
 
 const KNOWN_STYLES = LV_STYLES.map((s) => ({
   nameEn: s.nameEn,
