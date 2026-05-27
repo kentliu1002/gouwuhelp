@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as CreateProductInput;
-  const id = uuidv4();
+  const body = (await req.json()) as CreateProductInput & { id?: string };
+  const id = body.id ?? uuidv4();
   const product = await createProduct({ ...body, id });
   return NextResponse.json(product, { status: 201 });
 }

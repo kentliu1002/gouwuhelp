@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { identifyBag } from "@/lib/ai";
 import { LV_STYLES } from "@/lib/lv-data";
 
+export const maxDuration = 60; // seconds
+
 const KNOWN_STYLES = LV_STYLES.map((s) => ({
   nameEn: s.nameEn,
   nameZh: s.nameZh,
